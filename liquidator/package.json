@@ -34,6 +34,7 @@
     "@switchboard-xyz/sbv2-lite": "^0.1.0",
     "@switchboard-xyz/switchboard-api": "^0.2.160",
     "@unstake-it/sol": "^0.1.2",
+    "axios": "^0.24.0",
     "bignumber.js": "^9.0.1",
     "bn.js": "^5.2.0",
     "bs58": "^4.0.1",
