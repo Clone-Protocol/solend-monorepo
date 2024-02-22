@@ -7,6 +7,7 @@ import {
   PublicKey,
   Transaction,
   TransactionInstruction,
+  Keypair,
 } from '@solana/web3.js';
 import {
   getTokenInfoFromMarket,
@@ -19,7 +20,7 @@ import { MarketConfig, MarketConfigReserve } from 'global';
 
 export const liquidateAndRedeem = async (
   connection: Connection,
-  payer: Account,
+  payer: Keypair,
   liquidityAmount: number | string,
   repayTokenSymbol: string,
   withdrawTokenSymbol: string,

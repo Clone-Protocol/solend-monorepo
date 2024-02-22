@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-restricted-syntax */
 import { ASSOCIATED_TOKEN_PROGRAM_ID, Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { Connection, PublicKey, Keypair } from '@solana/web3.js';
 import {
   OBLIGATION_SIZE, parseObligation, parseReserve, Reserve, RESERVE_SIZE,
 } from '@solendprotocol/solend-sdk';
@@ -315,4 +315,11 @@ export const comparePubkeys = (a: PublicKey, b: PublicKey): number => {
   }
 
   return 0;
+};
+
+export const generateKeypairFromBuffer = (buffer: Uint8Array): Keypair => {
+  return new Keypair({
+    publicKey: buffer.slice(32, 64),
+    secretKey: buffer.slice(0, 32),
+  });
 };
