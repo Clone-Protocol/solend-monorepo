@@ -11,6 +11,9 @@ jobs:
   run_liquidations:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    defaults:
+        run:
+          working-directory: ./liquidator
     env:
       RPC_ENDPOINT: ${{ secrets.RPC_ENDPOINT }}
       KEYPAIR_BUFFER: ${{ secrets.KEYPAIR_BUFFER }}
@@ -22,9 +25,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '17'
-    
-      - name: Change into directory
-        run: cd liquidator
   
       - name: Cache node modules
         uses: actions/cache@v3
