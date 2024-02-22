@@ -1,22 +1,22 @@
 import {
-  ASSOCIATED_TOKEN_PROGRAM_ID, Token, TOKEN_PROGRAM_ID,
-} from '@solana/spl-token';
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  Token,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import {
-  Account,
+  ComputeBudgetProgram,
   Connection,
   PublicKey,
   Transaction,
   TransactionInstruction,
   Keypair,
-} from '@solana/web3.js';
-import {
-  getTokenInfoFromMarket,
-} from 'libs/utils';
-import { findWhere, map } from 'underscore';
-import { refreshReserveInstruction } from 'models/instructions/refreshReserve';
-import { LiquidateObligationAndRedeemReserveCollateral } from 'models/instructions/LiquidateObligationAndRedeemReserveCollateral';
-import { refreshObligationInstruction } from 'models/instructions/refreshObligation';
-import { MarketConfig, MarketConfigReserve } from 'global';
+} from "@solana/web3.js";
+import { getTokenInfoFromMarket } from "libs/utils";
+import { findWhere, map } from "underscore";
+import { refreshReserveInstruction } from "models/instructions/refreshReserve";
+import { LiquidateObligationAndRedeemReserveCollateral } from "models/instructions/LiquidateObligationAndRedeemReserveCollateral";
+import { refreshObligationInstruction } from "models/instructions/refreshObligation";
+import { MarketConfig, MarketConfigReserve } from "global";
 
 export const liquidateAndRedeem = async (
   connection: Connection,
@@ -26,16 +26,40 @@ export const liquidateAndRedeem = async (
   withdrawTokenSymbol: string,
   lendingMarket: MarketConfig,
   obligation: any,
+  priorityFee: number,
 ) => {
   const ixs: TransactionInstruction[] = [];
 
-  const depositReserves = map(obligation.info.deposits, (deposit) => deposit.depositReserve);
-  const borrowReserves = map(obligation.info.borrows, (borrow) => borrow.borrowReserve);
-  const uniqReserveAddresses = [...new Set<String>(map(depositReserves.concat(borrowReserves), (reserve) => reserve.toString()))];
+  if (priorityFee > 0) {
+    ixs.push(
+      ComputeBudgetProgram.setComputeUnitPrice({
+        microLamports: priorityFee,
+      }),
+    );
+  }
+
+  const depositReserves = map(
+    obligation.info.deposits,
+    (deposit) => deposit.depositReserve,
+  );
+  const borrowReserves = map(
+    obligation.info.borrows,
+    (borrow) => borrow.borrowReserve,
+  );
+  const uniqReserveAddresses = [
+    ...new Set<String>(
+      map(depositReserves.concat(borrowReserves), (reserve) =>
+        reserve.toString(),
+      ),
+    ),
+  ];
   uniqReserveAddresses.forEach((reserveAddress) => {
-    const reserveInfo: MarketConfigReserve = findWhere(lendingMarket!.reserves, {
-      address: reserveAddress,
-    });
+    const reserveInfo: MarketConfigReserve = findWhere(
+      lendingMarket!.reserves,
+      {
+        address: reserveAddress,
+      },
+    );
     const refreshReserveIx = refreshReserveInstruction(
       new PublicKey(reserveAddress),
       new PublicKey(reserveInfo.pythOracle),
@@ -51,7 +75,10 @@ export const liquidateAndRedeem = async (
   );
   ixs.push(refreshObligationIx);
 
-  const repayTokenInfo = getTokenInfoFromMarket(lendingMarket, repayTokenSymbol);
+  const repayTokenInfo = getTokenInfoFromMarket(
+    lendingMarket,
+    repayTokenSymbol,
+  );
 
   // get account that will be repaying the reserve liquidity
   const repayAccount = await Token.getAssociatedTokenAddress(
@@ -62,56 +89,66 @@ export const liquidateAndRedeem = async (
   );
 
   const reserveSymbolToReserveMap = new Map<string, MarketConfigReserve>(
-    lendingMarket.reserves.map((reserve) => [reserve.liquidityToken.symbol, reserve]),
+    lendingMarket.reserves.map((reserve) => [
+      reserve.liquidityToken.symbol,
+      reserve,
+    ]),
   );
 
-  const repayReserve: MarketConfigReserve | undefined = reserveSymbolToReserveMap.get(repayTokenSymbol);
-  const withdrawReserve: MarketConfigReserve | undefined = reserveSymbolToReserveMap.get(withdrawTokenSymbol);
-  const withdrawTokenInfo = getTokenInfoFromMarket(lendingMarket, withdrawTokenSymbol);
+  const repayReserve: MarketConfigReserve | undefined =
+    reserveSymbolToReserveMap.get(repayTokenSymbol);
+  const withdrawReserve: MarketConfigReserve | undefined =
+    reserveSymbolToReserveMap.get(withdrawTokenSymbol);
+  const withdrawTokenInfo = getTokenInfoFromMarket(
+    lendingMarket,
+    withdrawTokenSymbol,
+  );
 
   if (!withdrawReserve || !repayReserve) {
-    throw new Error('reserves are not identified');
+    throw new Error("reserves are not identified");
   }
 
-  const rewardedWithdrawalCollateralAccount = await Token.getAssociatedTokenAddress(
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-    TOKEN_PROGRAM_ID,
-    new PublicKey(withdrawReserve.collateralMintAddress),
-    payer.publicKey,
-  );
-  const rewardedWithdrawalCollateralAccountInfo = await connection.getAccountInfo(
-    rewardedWithdrawalCollateralAccount,
-  );
-  if (!rewardedWithdrawalCollateralAccountInfo) {
-    const createUserCollateralAccountIx = Token.createAssociatedTokenAccountInstruction(
+  const rewardedWithdrawalCollateralAccount =
+    await Token.getAssociatedTokenAddress(
       ASSOCIATED_TOKEN_PROGRAM_ID,
       TOKEN_PROGRAM_ID,
       new PublicKey(withdrawReserve.collateralMintAddress),
-      rewardedWithdrawalCollateralAccount,
-      payer.publicKey,
       payer.publicKey,
     );
+  const rewardedWithdrawalCollateralAccountInfo =
+    await connection.getAccountInfo(rewardedWithdrawalCollateralAccount);
+  if (!rewardedWithdrawalCollateralAccountInfo) {
+    const createUserCollateralAccountIx =
+      Token.createAssociatedTokenAccountInstruction(
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+        TOKEN_PROGRAM_ID,
+        new PublicKey(withdrawReserve.collateralMintAddress),
+        rewardedWithdrawalCollateralAccount,
+        payer.publicKey,
+        payer.publicKey,
+      );
     ixs.push(createUserCollateralAccountIx);
   }
 
-  const rewardedWithdrawalLiquidityAccount = await Token.getAssociatedTokenAddress(
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-    TOKEN_PROGRAM_ID,
-    new PublicKey(withdrawTokenInfo.mintAddress),
-    payer.publicKey,
-  );
-  const rewardedWithdrawalLiquidityAccountInfo = await connection.getAccountInfo(
-    rewardedWithdrawalLiquidityAccount,
-  );
-  if (!rewardedWithdrawalLiquidityAccountInfo) {
-    const createUserCollateralAccountIx = Token.createAssociatedTokenAccountInstruction(
+  const rewardedWithdrawalLiquidityAccount =
+    await Token.getAssociatedTokenAddress(
       ASSOCIATED_TOKEN_PROGRAM_ID,
       TOKEN_PROGRAM_ID,
       new PublicKey(withdrawTokenInfo.mintAddress),
-      rewardedWithdrawalLiquidityAccount,
-      payer.publicKey,
       payer.publicKey,
     );
+  const rewardedWithdrawalLiquidityAccountInfo =
+    await connection.getAccountInfo(rewardedWithdrawalLiquidityAccount);
+  if (!rewardedWithdrawalLiquidityAccountInfo) {
+    const createUserCollateralAccountIx =
+      Token.createAssociatedTokenAccountInstruction(
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+        TOKEN_PROGRAM_ID,
+        new PublicKey(withdrawTokenInfo.mintAddress),
+        rewardedWithdrawalLiquidityAccount,
+        payer.publicKey,
+        payer.publicKey,
+      );
     ixs.push(createUserCollateralAccountIx);
   }
 
@@ -141,6 +178,8 @@ export const liquidateAndRedeem = async (
   tx.feePayer = payer.publicKey;
   tx.sign(payer);
 
-  const txHash = await connection.sendRawTransaction(tx.serialize(), { skipPreflight: false });
-  await connection.confirmTransaction(txHash, 'processed');
+  const txHash = await connection.sendRawTransaction(tx.serialize(), {
+    skipPreflight: false,
+  });
+  await connection.confirmTransaction(txHash, "processed");
 };

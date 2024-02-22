@@ -12,6 +12,7 @@ import {
 import { findWhere } from 'underscore';
 import { TokenOracleData } from './pyth';
 import { Borrow } from './refreshObligation';
+import axios from 'axios';
 
 export const WAD = new BigNumber(`1${''.padEnd(18, '0')}`);
 export const U64_MAX = '18446744073709551615';
@@ -322,4 +323,46 @@ export const generateKeypairFromBuffer = (buffer: Uint8Array): Keypair => {
     publicKey: buffer.slice(32, 64),
     secretKey: buffer.slice(0, 32),
   });
+};
+
+
+export type FeeLevel =
+  | "min"
+  | "low"
+  | "medium"
+  | "high"
+  | "veryHigh"
+  | "unsafeMax";
+export type PriorityFeeEstimate = Record<FeeLevel, number>;
+export type PriorityFeeEstimateResponse = {
+  priorityFeeLevels: PriorityFeeEstimate;
+};
+
+export const fetchPriorityFeeMicroLamports = async (
+  heliusEndpoint: string,
+  solendProgramID: PublicKey,
+  feeLevel: FeeLevel = "veryHigh"
+) => {
+  const request = {
+    jsonrpc: "2.0",
+    id: "1",
+    method: "getPriorityFeeEstimate",
+    params: [
+      {
+        accountKeys: [solendProgramID],
+        options: {
+          includeAllPriorityFeeLevels: true,
+        },
+      },
+    ],
+  };
+  try {
+    const response: PriorityFeeEstimateResponse = (
+      await axios.post(heliusEndpoint, request)
+    ).data.result;
+    return response.priorityFeeLevels[feeLevel];
+  } catch (error) {
+    console.error("Error fetching priority fee estimate:", error);
+  }
+  return 0;
 };

@@ -16,10 +16,12 @@ jobs:
           working-directory: ./liquidator
     env:
       RPC_ENDPOINT: ${{ secrets.RPC_ENDPOINT }}
+      HELIUS_RPC_ENDPOINT: ${{ secrets.HELIUS_RPC_ENDPOINT }}
       KEYPAIR_BUFFER: ${{ secrets.KEYPAIR_BUFFER }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       APP: ${{ vars.APP }}
       MARKET: ${{ vars.MARKET }}
+      SOLEND_PROGRAM_ID: ${{ vars.SOLEND_PROGRAM_ID }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3

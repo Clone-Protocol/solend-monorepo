@@ -3,6 +3,7 @@
 import { Account, Connection, Keypair, PublicKey } from "@solana/web3.js";
 import dotenv from "dotenv";
 import {
+  fetchPriorityFeeMicroLamports,
   generateKeypairFromBuffer,
   getObligations,
   getReserves,
@@ -37,9 +38,11 @@ async function runLiquidator() {
   console.log("markets", markets);
   const connection = new Connection(rpcEndpoint, "confirmed");
   // liquidator's keypair.
-  const keypairBuffer = JSON.parse(process.env.KEYPAIR_BUFFER!) as Uint8Array;
-  const payer = generateKeypairFromBuffer(keypairBuffer);
-  console.log("secret key size:", payer.secretKey.length);
+  const payer = generateKeypairFromBuffer(
+    JSON.parse(process.env.KEYPAIR_BUFFER!) as Uint8Array,
+  );
+  const heliusEndpoint = process.env.HELIUS_RPC_ENDPOINT;
+  const solendProgramID = process.env.SOLEND_PROGRAM_ID;
   // const payer = new Account(keypair.secretKey);
   // const payer = new Account(JSON.parse(readSecret('keypair')));
   // const jupiter = await Jupiter.load({
@@ -54,8 +57,10 @@ async function runLiquidator() {
   };
 
   console.log(`
+    solend program id: ${solendProgramID}
     app: ${process.env.APP}
     rpc: ${rpcEndpoint}
+    helius endpoint: ${heliusEndpoint}
     wallet: ${payer.publicKey.toString()}
     slack endpoint: ${process.env.SLACK_WEBHOOK_URL}
     auto-rebalancing: ${target.length > 0 ? "ON" : "OFF"}
@@ -131,6 +136,15 @@ async function runLiquidator() {
             break;
           }
 
+          let priorityFee = 0;
+          if (heliusEndpoint && solendProgramID) {
+            priorityFee = await fetchPriorityFeeMicroLamports(
+              heliusEndpoint,
+              new PublicKey(solendProgramID),
+              "veryHigh",
+            );
+          }
+
           // Set super high liquidation amount which acts as u64::MAX as program will only liquidate max
           // 50% val of all borrowed assets.
           await liquidateAndRedeem(
@@ -141,6 +155,7 @@ async function runLiquidator() {
             selectedDeposit.symbol,
             market,
             obligation,
+            priorityFee,
           );
 
           const postLiquidationObligation = await connection.getAccountInfo(
