@@ -124,12 +124,12 @@ async function runLiquidator() {
             selectedBorrow.symbol,
           );
           if (balanceBase === 0) {
-            const msg = `insufficient ${selectedBorrow.symbol} to liquidate obligation ${obligation.pubkey.toString()} in market: ${market.address}`;
+            const msg = `insufficient ${selectedBorrow.symbol} (${selectedBorrow.mintAddress}) to liquidate obligation ${obligation.pubkey.toString()} in market: ${market.address}`;
             console.log(msg);
             await sendToSlack(msg);
             break;
           } else if (balanceBase < 0) {
-            const msg = `failed to get wallet balance for ${selectedBorrow.symbol} to liquidate obligation ${obligation.pubkey.toString()} in market: ${market.address}. 
+            const msg = `failed to get wallet balance for ${selectedBorrow.symbol} (${selectedBorrow.mintAddress}) to liquidate obligation ${obligation.pubkey.toString()} in market: ${market.address}. 
             Potentially network error or token account does not exist in wallet`;
             console.log(msg);
             await sendToSlack(msg);
@@ -143,6 +143,7 @@ async function runLiquidator() {
               new PublicKey(solendProgramID),
               "veryHigh",
             );
+            console.log("PRIORITY FEES ADDED:", priorityFee)
           }
 
           // Set super high liquidation amount which acts as u64::MAX as program will only liquidate max
